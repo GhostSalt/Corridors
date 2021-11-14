@@ -5,8 +5,10 @@ using System.Linq;
 using UnityEngine;
 using KModkit;
 using Rnd = UnityEngine.Random;
+using System.Text.RegularExpressions;
 
-public class CorridorsScript : MonoBehaviour {
+public class CorridorsScript : MonoBehaviour
+{
 
     static int _moduleIdCounter = 1;
     int _moduleID = 0;
@@ -20,19 +22,19 @@ public class CorridorsScript : MonoBehaviour {
     public TextMesh ColourblindText;
     public GameObject ColourblindDevice;
 
-    private int[,] Grid = { 
-        { 8, 7, 9, 2, 5, 0, 3, 4, 1, 6 }, 
-        { 3, 4, 1, 6, 8, 7, 9, 2, 5, 0 }, 
-        { 7, 9, 2, 5, 0, 3, 4, 1, 6, 8 }, 
-        { 1, 6, 8, 7, 9, 2, 5, 0, 3, 4 }, 
-        { 2, 5, 0, 3, 4, 1, 6, 8, 7, 9 }, 
-        { 0, 3, 4, 1, 6, 8, 7, 9, 2, 5 }, 
-        { 9, 2, 5, 0, 3, 4, 1, 6, 8, 7 }, 
-        { 5, 0, 3, 4, 1, 6, 8, 7, 9, 2 }, 
-        { 4, 1, 6, 8, 7, 9, 2, 5, 0, 3 }, 
+    private static readonly int[,] Grid = {
+        { 8, 7, 9, 2, 5, 0, 3, 4, 1, 6 },
+        { 3, 4, 1, 6, 8, 7, 9, 2, 5, 0 },
+        { 7, 9, 2, 5, 0, 3, 4, 1, 6, 8 },
+        { 1, 6, 8, 7, 9, 2, 5, 0, 3, 4 },
+        { 2, 5, 0, 3, 4, 1, 6, 8, 7, 9 },
+        { 0, 3, 4, 1, 6, 8, 7, 9, 2, 5 },
+        { 9, 2, 5, 0, 3, 4, 1, 6, 8, 7 },
+        { 5, 0, 3, 4, 1, 6, 8, 7, 9, 2 },
+        { 4, 1, 6, 8, 7, 9, 2, 5, 0, 3 },
         { 6, 8, 7, 9, 2, 5, 0, 3, 4, 1 }
     };
-    private int[][] Corridors = {
+    private static readonly int[][] Corridors = {
         new int[] { 1, 0, 1, 2, 1, 0, 1, 1 },
         new int[] { 0, 0, 1, 2, 2, 1, 1 },
         new int[] { 2, 2, 2, 1, 1, 0, 1, 1 },
@@ -48,7 +50,7 @@ public class CorridorsScript : MonoBehaviour {
     private int CurrentNumber;
     private int CurrentColour;
     private int CompletedStages;
-    private string[] ColourNames = { "red", "orange", "yellow", "green", "blue", "magenta", "white" };
+    private static readonly string[] ColourNames = { "red", "orange", "yellow", "green", "blue", "magenta", "white" };
     private bool Solved;
     private bool ColourRuleApplied;
     private bool ColourblindEnabled;
@@ -60,17 +62,14 @@ public class CorridorsScript : MonoBehaviour {
         if (!ColourblindEnabled)
             ColourblindDevice.SetActive(false);
         for (int i = 0; i < 3; i++)
-        {
-            int x = i;
-            Buttons[i].OnInteract += delegate { StartCoroutine(ButtonPress(x)); return false; };
-        }
+            Buttons[i].OnInteract += ButtonPress(i);
         Calculate();
     }
 
     void Calculate()
     {
-        CurrentNumber = Rnd.Range(0, 99);
-        CurrentColour = Rnd.Range(0, 7);
+        CurrentNumber = 21;// Rnd.Range(0, 99);
+        CurrentColour = 0;// Rnd.Range(0, 7);
         Display.text = CurrentNumber.ToString("00");
         switch (CurrentColour)
         {
@@ -110,24 +109,21 @@ public class CorridorsScript : MonoBehaviour {
                 ColourblindText.text = "W";
                 break;
         }
-        Debug.LogFormat("[Corridors #{0}] The device displays {1}, coloured {2}.",_moduleID, CurrentNumber.ToString("00"), ColourNames[CurrentColour]);
+        Debug.LogFormat("[Corridors #{0}] The device displays {1}, coloured {2}.", _moduleID, CurrentNumber.ToString("00"), ColourNames[CurrentColour]);
         Debug.LogFormat("[Corridors #{0}] Ignoring the colour rule, the current corridor is {1}.", _moduleID, Corridors[Grid[int.Parse(CurrentNumber.ToString("00")[0].ToString()), int.Parse(CurrentNumber.ToString("00")[1].ToString())]].Join(", ").Replace('0', 'L').Replace('1', 'F').Replace('2', 'R'));
     }
 
-    private IEnumerator ButtonPress(int pos) //Warning: this code sucks.
+    private KMSelectable.OnInteractHandler ButtonPress(int pos)
     {
-        Buttons[pos].AddInteractionPunch();
-        if (!Solved)
+        return delegate
         {
+            Buttons[pos].AddInteractionPunch();
+            if (Solved)
+                return false;
+
             Audio.PlaySoundAtTransform("move", Buttons[pos].transform);
-        }
-        for (int i = 0; i < 3; i++)
-        {
-            Buttons[pos].transform.localPosition -= new Vector3(0,0.002f,0);
-            yield return null;
-        }
-        if (!Solved)
-        {
+            StartCoroutine(ButtonPressAnimation(pos));
+
             if (pos == Corridors[Grid[int.Parse(CurrentNumber.ToString("00")[0].ToString()), int.Parse(CurrentNumber.ToString("00")[1].ToString())]][CurrentMove])
             {
                 if (!(Grid[int.Parse(CurrentNumber.ToString("00")[0].ToString()), int.Parse(CurrentNumber.ToString("00")[1].ToString())] % 2 == 0 && CurrentMove == 7) && !(Grid[int.Parse(CurrentNumber.ToString("00")[0].ToString()), int.Parse(CurrentNumber.ToString("00")[1].ToString())] % 2 == 1 && CurrentMove == 6))
@@ -256,6 +252,16 @@ public class CorridorsScript : MonoBehaviour {
                 CurrentMove = 0;
                 Calculate();
             }
+            return false;
+        };
+    }
+
+    private IEnumerator ButtonPressAnimation(int pos)
+    {
+        for (int i = 0; i < 3; i++)
+        {
+            Buttons[pos].transform.localPosition -= new Vector3(0, 0.002f, 0);
+            yield return null;
         }
         for (int i = 0; i < 3; i++)
         {
@@ -265,80 +271,46 @@ public class CorridorsScript : MonoBehaviour {
     }
 
 #pragma warning disable 414
-    private string TwitchHelpMessage = "Use '!{0} l f r' to move left, then forward, then right. Use '!{0} colo(u)rblind' to toggle the colourblind device.";
+    private string TwitchHelpMessage = "!{0} l f r [move left, forward, right] | !{0} colo(u)rblind";
 #pragma warning restore 414
-    IEnumerator ProcessTwitchCommand(string command)
+
+    KMSelectable[] ProcessTwitchCommand(string command)
     {
-        command = command.ToLowerInvariant();
-        string[] CommandArray = command.Split(' ');
-        string[] ValidCommands = { "l", "f", "r" };
-        for (int i = 0; i < CommandArray.Length; i++)
+        if (Regex.IsMatch(command, @"^\s*(colou?rblind|cb)\s*$", RegexOptions.CultureInvariant | RegexOptions.IgnoreCase))
         {
-            if (!ValidCommands.Contains(CommandArray[i]) && command != "colourblind" && command != "colorblind")
+            if (ColourblindEnabled)
             {
-                yield return "sendtochaterror Invalid command.";
-                yield break;
-            }
-            else if (command == "colourblind" || command == "colorblind")
-            {
-                yield return null;
-                if (ColourblindEnabled)
-                {
-                    ColourblindEnabled = false;
-                    ColourblindDevice.SetActive(false);
-                }
-                else
-                {
-                    ColourblindEnabled = true;
-                    ColourblindDevice.SetActive(true);
-                }
-                break;
+                ColourblindEnabled = false;
+                ColourblindDevice.SetActive(false);
             }
             else
             {
-                if (CommandArray[i] == "l")
-                    Buttons[0].OnInteract();
-                else if (CommandArray[i] == "f")
-                    Buttons[1].OnInteract();
-                else
-                    Buttons[2].OnInteract();
-                yield return new WaitForSeconds(0.1f);
+                ColourblindEnabled = true;
+                ColourblindDevice.SetActive(true);
             }
+            return new KMSelectable[0];
         }
+
+        var btns = command.Select(ch =>
+        {
+            switch (ch)
+            {
+                case 'l': case 'L': return Buttons[0];
+                case 'f': case 'F': return Buttons[1];
+                case 'r': case 'R': return Buttons[2];
+                default: return null;
+            }
+        }).ToArray();
+        return btns.Any(b => b == null) ? null : btns;
     }
 
     IEnumerator TwitchHandleForcedSolve()
     {
         while (!Solved)
         {
-            switch(Corridors[Grid[int.Parse(CurrentNumber.ToString("00")[0].ToString()), int.Parse(CurrentNumber.ToString("00")[1].ToString())]][CurrentMove])
-            {
-                case 0:
-                    yield return true;
-                    Buttons[0].OnInteract();
-                    for (int i = 0; i < 4; i++)
-                    {
-                        yield return null;
-                    }
-                    break;
-                case 1:
-                    yield return true;
-                    Buttons[1].OnInteract();
-                    for (int i = 0; i < 4; i++)
-                    {
-                        yield return null;
-                    }
-                    break;
-                default:
-                    yield return true;
-                    Buttons[2].OnInteract();
-                    for (int i = 0; i < 4; i++)
-                    {
-                        yield return null;
-                    }
-                    break;
-            }
+            var num = Corridors[Grid[int.Parse(CurrentNumber.ToString("00")[0].ToString()), int.Parse(CurrentNumber.ToString("00")[1].ToString())]][CurrentMove];
+            Buttons[num].OnInteract();
+            yield return new WaitForSeconds(.5f);
         }
     }
-    // You can't go back. Don't look back. It will kill you.
 }
